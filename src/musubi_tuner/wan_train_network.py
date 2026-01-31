@@ -479,6 +479,7 @@ class WanNetworkTrainer(NetworkTrainer):
             dit_weight_dtype,
             args.fp8_scaled,
             disable_numpy_memmap=args.disable_numpy_memmap,
+            causal_attention=getattr(args, "causal_attention", False),
         )
         if args.force_v2_1_time_embedding:
             model.set_time_embedding_v2_1(True)
@@ -496,6 +497,7 @@ class WanNetworkTrainer(NetworkTrainer):
                 dit_weight_dtype,
                 args.fp8_scaled,
                 disable_numpy_memmap=args.disable_numpy_memmap,
+                causal_attention=getattr(args, "causal_attention", False),
             )
             if args.force_v2_1_time_embedding:
                 model_high_noise.set_time_embedding_v2_1(True)
@@ -740,6 +742,11 @@ def wan_setup_parser(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
         "--offload_inactive_dit",
         action="store_true",
         help="Offload inactive DiT model to CPU. Cannot be used with block swap / アクティブではないDiTモデルをCPUにオフロードします。ブロックスワップと併用できません",
+    )
+    parser.add_argument(
+        "--causal_attention",
+        action="store_true",
+        help="Use causal attention masking in self-attention. Enables training LoRAs compatible with autoregressive models.",
     )
 
     return parser

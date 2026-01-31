@@ -180,7 +180,7 @@ class WanLayerNorm(nn.LayerNorm):
 
 class WanSelfAttention(nn.Module):
 
-    def __init__(self, dim, num_heads, window_size=(-1, -1), qk_norm=True, eps=1e-6, attn_mode="torch", split_attn=False):
+    def __init__(self, dim, num_heads, window_size=(-1, -1), qk_norm=True, eps=1e-6, attn_mode="torch", split_attn=False, causal_attention=False):
         assert dim % num_heads == 0
         super().__init__()
         self.dim = dim
@@ -191,6 +191,7 @@ class WanSelfAttention(nn.Module):
         self.eps = eps
         self.attn_mode = attn_mode
         self.split_attn = split_attn
+        self.causal_attention = causal_attention
 
         # layers
         self.q = nn.Linear(dim, dim)
@@ -235,7 +236,8 @@ class WanSelfAttention(nn.Module):
         qkv = [q, k, v]
         del q, k, v
         x = flash_attention(
-            qkv, k_lens=seq_lens, window_size=self.window_size, attn_mode=self.attn_mode, split_attn=self.split_attn
+            qkv, k_lens=seq_lens, window_size=self.window_size, attn_mode=self.attn_mode, split_attn=self.split_attn,
+            causal=self.causal_attention
         )
 
         # output
@@ -362,6 +364,7 @@ class WanAttentionBlock(nn.Module):
         attn_mode="torch",
         split_attn=False,
         model_version="2.1",  # New!
+        causal_attention=False,
     ):
         super().__init__()
         self.dim = dim
@@ -372,6 +375,7 @@ class WanAttentionBlock(nn.Module):
         self.cross_attn_norm = cross_attn_norm
         self.eps = eps
         self.model_version = model_version  # New!
+        self.causal_attention = causal_attention
 
         # layers
         if model_version == "2.1":
@@ -380,7 +384,7 @@ class WanAttentionBlock(nn.Module):
             cross_attn_class = WanCrossAttention  # For Wan2.2, we use the same cross-attention class
 
         self.norm1 = WanLayerNorm(dim, eps)
-        self.self_attn = WanSelfAttention(dim, num_heads, window_size, qk_norm, eps, attn_mode, split_attn)
+        self.self_attn = WanSelfAttention(dim, num_heads, window_size, qk_norm, eps, attn_mode, split_attn, causal_attention)
         self.norm3 = WanLayerNorm(dim, eps, elementwise_affine=True) if cross_attn_norm else nn.Identity()
         self.cross_attn = cross_attn_class(dim, num_heads, (-1, -1), qk_norm, eps, attn_mode, split_attn)
         self.norm2 = WanLayerNorm(dim, eps)
@@ -575,6 +579,7 @@ class WanModel(nn.Module):  # ModelMixin, ConfigMixin):
         eps=1e-6,
         attn_mode=None,
         split_attn=False,
+        causal_attention=False,
     ):
         r"""
         Initialize the diffusion model backbone.
@@ -636,6 +641,7 @@ class WanModel(nn.Module):  # ModelMixin, ConfigMixin):
         self.eps = eps
         self.attn_mode = attn_mode if attn_mode is not None else "torch"
         self.split_attn = split_attn
+        self.causal_attention = causal_attention
 
         # embeddings
         self.patch_embedding = nn.Conv3d(in_dim, dim, kernel_size=patch_size, stride=patch_size)
@@ -661,6 +667,7 @@ class WanModel(nn.Module):  # ModelMixin, ConfigMixin):
                     attn_mode,
                     split_attn,
                     model_version=self.model_version,  # New!
+                    causal_attention=causal_attention,
                 )
                 for _ in range(num_layers)
             ]
@@ -990,6 +997,7 @@ def load_wan_model(
     lora_multipliers: Optional[List[float]] = None,
     use_scaled_mm: bool = False,
     disable_numpy_memmap: bool = False,
+    causal_attention: bool = False,
 ) -> WanModel:
     """
     Load a WAN model from the specified checkpoint.
@@ -1033,6 +1041,7 @@ def load_wan_model(
             text_len=config.text_len,
             attn_mode=attn_mode,
             split_attn=split_attn,
+            causal_attention=causal_attention,
         )
         if dit_weight_dtype is not None:
             model.to(dit_weight_dtype)
