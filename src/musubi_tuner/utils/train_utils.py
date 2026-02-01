@@ -87,8 +87,8 @@ def get_step_ckpt_name(model_name, step_no: int):
     return STEP_FILE_NAME.format(model_name, step_no) + ".safetensors"
 
 
-def get_last_ckpt_name(model_name):
-    return model_name + ".safetensors"
+def get_last_ckpt_name(model_name, epoch_no: int):
+    return EPOCH_FILE_NAME.format(model_name, epoch_no) + ".safetensors"
 
 
 def get_remove_epoch_no(args: argparse.Namespace, epoch_no: int):

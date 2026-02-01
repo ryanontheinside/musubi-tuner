@@ -2328,7 +2328,7 @@ class NetworkTrainer:
             train_utils.save_state_on_train_end(args, accelerator)
 
         if is_main_process:
-            ckpt_name = train_utils.get_last_ckpt_name(args.output_name)
+            ckpt_name = train_utils.get_last_ckpt_name(args.output_name, num_train_epochs)
             save_model(ckpt_name, network, global_step, num_train_epochs, force_sync_upload=True)
 
             logger.info("model saved.")
